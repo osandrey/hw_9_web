@@ -5,28 +5,26 @@
 
 
 # useful for handling different item types with a single interface
+from scrapy.item import Item
 from itemadapter import ItemAdapter
 import json
 
-class MySpyderPipelineQuotes(object):
-    quotes_list = []
-    authors_list = []
+
+class MySpyderPipeline(object):
+    quotes = []
+    authors = []
 
     def process_item(self, item, spider):
-
-        adapted_item = ItemAdapter(item)
-        # print(adapted_item)
-        if "author" in adapted_item.keys():
-            self.quotes_list.append(item)
-        elif 'fullname' in adapted_item.keys():
-            self.authors_list.append(item)
-
+        adapter = ItemAdapter(item)
+        if 'quote' in adapter.keys():
+            self.quotes.append(adapter.asdict())
+        if 'fullname' in adapter.keys():
+            self.authors.append(adapter.asdict())
         return item
 
-    def close_spyder(self, spyder):
+    def close_spider(self, spider):
+        with open('quotes.json', 'w', encoding='utf-8') as fd:
+            json.dump(self.quotes, fd, ensure_ascii=False, indent=4)
 
-        with open("authors.json", "w") as file:
-            json.dump(self.authors_list, file, indent=4)
-
-        with open("quotes.json", "w") as file:
-            json.dump(self.quotes_list, file, indent=4)
+        with open('authors.json', 'w', encoding='utf-8') as fd:
+            json.dump(self.authors, fd, ensure_ascii=False, indent=4)

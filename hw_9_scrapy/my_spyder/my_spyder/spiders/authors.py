@@ -2,25 +2,60 @@ import scrapy
 import collections
 import sys
 
-from ..pipelines import *
+from scrapy import Item
+from scrapy.crawler import CrawlerProcess
+from scrapy.item import Field
+
+from hw_9_scrapy.my_spyder.my_spyder.pipelines import MySpyderPipeline
+
+class QuoteItem(Item):
+    tags = Field()
+    author = Field()
+    quote = Field()
+
+class AuthorItem(Item):
+    fullname = Field()
+    date_born = Field()
+    born_location = Field()
+    bio = Field()
 
 
-class AuthorsSpider(scrapy.Spider):
-    name = 'authors'
-    custom_settings = {"ITEM_PIPLINES": {MySpyderPipelineQuotes: 100}}
+class MainSpyder(scrapy.Spider):
+    name = 'main_spyder'
+
     allowed_domains = ['quotes.toscrape.com']
     start_urls = ['http://quotes.toscrape.com/']
+    custom_settings = {'ITEM_PIPELINES': {MySpyderPipeline: 100}}
+    START_INDEX = 0
 
-    def parse(self, response):
-        for quote in response.xpath("/html//div[@class='author-details']"):
-            yield {
 
-                "fullname" : quote.xpath("h3[@class='author-title']/text()").get().strip(),
-                "date_born" : quote.xpath("p/span[@class='author-born-date']/text()").get().strip(),
-                "born_location" : quote.xpath("p/span[@class='author-born-location']/text()").get().strip(),
-                "description" : quote.xpath("div[@class='author-description']/text()").get().strip()
-            }
+    def parse(self, response, *args):
+        for el in response.xpath("/html//div[@class='quote']"):
+            tags = [e.strip() for e in el.xpath("div[@class='tags']/a[@class='tag']/text()").extract()]
+            author = el.xpath("span/small[@class='author']/text()").get().strip()
+            quote = el.xpath("span[@class='text']/text()").get().strip()
+            yield QuoteItem(tags=tags, author=author, quote=quote)
+            yield response.follow(
+                url=self.start_urls[self.START_INDEX] + el.xpath("span/a/@href").get().strip(),
+                callback=self.parse_author
+            )
+            next_link = response.xpath("//li[@class='next']/a/@href").get()
+            if next_link:
+                yield scrapy.Request(url=self.start_urls[self.START_INDEX] + next_link.strip())
 
-        next_link = response.xpath("//li[@class='next']/a/@href").get()
-        if next_link:
-            yield scrapy.Request(url=self.start_urls[0] + next_link)
+
+    def parse_author(self, response, *args):
+        content = response.xpath("/html//div[@class='author-details']")
+        fullname = content.xpath("h3[@class='author-title']/text()").get().strip()
+        date_born = content.xpath("p/span[@class='author-born-date']/text()").get().strip()
+        born_location = content.xpath("p/span[@class='author-born-location']/text()").get().strip()
+        bio = content.xpath("div[@class='author-description']/text()").get().strip()
+
+        yield AuthorItem(fullname=fullname, date_born=date_born, born_location=born_location, bio=bio)
+
+
+if __name__ == '__main__':
+    process = CrawlerProcess()
+    process.crawl(MainSpyder)
+    process.start()
+    print('Process finished!')

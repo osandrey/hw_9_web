@@ -72,6 +72,6 @@ if __name__ == '__main__':
     process = CrawlerProcess()
     process.crawl(MainSpider)
     process.start()
-    print('End')
+    print('Process finished!')
 
 
